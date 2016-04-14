@@ -1,0 +1,5 @@
+geojson_base 1
+
+description
+	functionalatity that the geojson module depends on
+end

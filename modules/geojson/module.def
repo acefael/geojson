@@ -1,0 +1,12 @@
+geojson 1
+
+description
+	enables writing rwos and collections thereof as geojson
+end
+
+requires
+	geojson_base
+	ds_src
+	geometry_vector
+	rwo_core
+end
