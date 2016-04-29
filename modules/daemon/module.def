@@ -1,0 +1,6 @@
+daemon 1
+
+description
+	exemplar for running an acefael services daemon
+end
+

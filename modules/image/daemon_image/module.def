@@ -1,0 +1,9 @@
+daemon_image 1
+
+description
+	adds startup procedure to enable the daemon
+end
+
+requires
+	daemon
+end

@@ -1,0 +1,159 @@
+#% text_encoding=utf8
+
+_package sw
+$
+
+def_slotted_exemplar(
+	:daemon ,
+	{{:sconn,_unset},
+	 {:sconn_thread,_unset},
+	 {:database,_unset}},
+	{} )
+$
+
+_pragma(classify_level=advanced)
+daemon.define_slot_access(
+	:sconn,
+	:write,
+	:public)
+$
+
+_pragma(classify_level=advanced)
+daemon.define_slot_access(
+	 :sconn_thread,
+	 :write,
+	 :public)
+$
+
+_pragma(classify_level=advanced)
+daemon.define_slot_access(
+	 :database,
+	 :write,
+	 :public)
+$
+
+## services
+##
+## contains name -> service mappings.
+## name is typically a symbol, e.g. :select
+## service is something that understands :|invoke()| with 1 argument
+_pragma(classify_level=advanced)
+daemon.define_shared_constant(
+	 :services,
+	 hash_table.new(),
+	 :public)
+$
+
+_pragma(classify_level=advanced)
+_method daemon.do_work(socket)
+
+	## handles a client connection
+	##
+	## a thread is started to do the work. this method then
+	## returns asap.
+	##
+	## within the worker thread we read from the socket the name
+	## of the service to invoke - which is nothing more than a key
+	## in the "services" slot. the service is called upon by
+	## calling :invoke() on it.  thus a service may be an
+	## exemplar, an object or perhaps nothing more than an
+	## anonymous proc.
+	##
+	## if things do not go precisely as laid out in our cunning
+	## plan, the network connection is closed and the thread
+	## ceases existence.
+
+	_if socket _is _unset _then _return _endif
+
+	_local handler_proc<<
+		_proc(socket)
+			_local in<<socket.input
+			_local out<<socket.output
+			_protect
+				_loop
+					_local ex_len << in.get_unsigned_int()
+					_if ex_len _is _unset _then _leave _endif
+					_local service_name << in.get_ascii_chars(ex_len)
+					_if service_name _is _unset _then _leave _endif
+					_local service << daemon.services[ service_name.as_symbol() ]
+					_if service _is _unset _then _leave _endif
+					service.invoke(
+						property_list.new_with(
+							:input,in,
+							:output,out,
+							:socket,socket))
+				_endloop
+			_protection
+				invoke_with_bombproof(_proc(s) s.close() _endproc,socket)
+			_endprotect
+		_endproc
+
+	heavy_thread.new_general(
+		handler_proc,
+		{socket},
+		:name,"acefael_worker")
+_endmethod
+$
+
+_pragma(classify_level=advanced)
+_method daemon.run()
+
+	##
+	## opens a listening thread
+	##
+	## the port is taken from the option "listen".
+	##
+
+	_local port << smallworld_product.get_option( :listen )
+
+	_self.sconn << tcpip_connection_stream.new(
+			 port ,
+			 :autoflush?, _false )
+
+	_self.sconn_thread <<
+		heavy_thread.new_general(
+			# the infinite loop thread, accepting
+			# connections on the tcp socket
+			_proc @acefael_listener(me)
+				_local socket
+
+				_protect
+					_loop
+						socket << me.sconn.get()
+						me.do_work(socket)
+						socket << _unset
+					_endloop
+				_protection
+					sconn_thread << _unset
+					_if socket _isnt _unset
+					_then
+						invoke_with_bombproof(_proc(socket)
+									      socket.close(_true)
+								      _endproc , socket )
+					_endif
+				_endprotect
+			_endproc,
+			{_self},
+			:name, "acefael_listener",
+			:share_environment?,_false)
+_endmethod
+$
+
+_pragma(classify_level=advanced)
+_method daemon.stop()
+	_if _self.sconn _isnt _unset
+	_then
+		_self.sconn.close()
+		_self.sconn<<_unset
+	_endif
+	_if _self.sconn_thread _isnt _unset
+	_then
+		_self.sconn_thread.kill()
+		_self.sconn_thread<<_unset
+	_endif
+_endmethod
+$
+
+
+smallworld_product.add_command_line_option_definition(:listen,:number,3001,_false)
+$
