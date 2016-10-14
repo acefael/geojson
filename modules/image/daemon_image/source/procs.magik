@@ -4,3 +4,85 @@ $
 
 smallworld_product.add_startup_procedure({daemon,:|run()|})
 $
+
+_block
+	_local p
+
+	p << _proc@echo(params)
+		     ## this proc reads a string and echoes it back
+		     _local text << daemon_io.get_str(params[:input])
+		     text << text.default("")
+		     _local out << params[:output]
+		     out.put_unsigned_int(text.size*2)
+		     daemon_io.put_str(out,text)
+		     out.flush()
+	     _endproc
+
+	daemon.services[:echo] << p
+
+	p << _proc@double(params)
+		     ## reads an int (unsigned) and returns an int
+		     ## twice the size
+		     _local v<<params[:input].get_unsigned_int()
+		     params[:output].put_unsigned_int(4)
+		     params[:output].put_unsigned_int( v * 2 )
+		     params[:output].flush()
+	     _endproc
+
+	daemon.services[:double] << p
+
+	p << _proc@add(params)
+		     ## reads two unsigned ints and adds them
+		     _local in << params[:input]
+		     _local out<<params[:output]
+
+		     out.put_unsigned_int(4)
+		     out.put_unsigned_int( in.get_unsigned_int() + in.get_unsigned_int() )
+		     out.flush()
+	     _endproc
+
+	daemon.services[:add] << p
+
+	p << _proc@hello(params)
+		     ## a service that writes to the MSF console, so i
+		     ## know it has been invoked
+		     write("in the hello service")
+		     params[:output].put_unsigned_int(0) # 0 bytes of response length
+		     params[:output].flush()
+	     _endproc
+
+	daemon.services[:hello] << p
+
+	p<<_proc@search_roads(params)
+		   ## searches roads and returns found roads as geojson.
+		   ##
+		   ## takes a string suitable for predicate.wild and
+		   ## searches the :name field of the :min_road
+		   ## collection
+		   _local in  << params[:input]
+		   _local out << params[:output]
+
+		   # parameter is a wildcard string. thats what is read here.
+		   _local pattern << daemon_io.get_str(in)
+		   # do the select on the collection
+		   _local selection << _block
+					       _local ds << gis_program_manager.databases[:gis]
+					       _local coll << ds.collections[:min_road]
+					       >> coll.select(predicate.wild(:name,pattern))
+				       _endblock
+
+		   # write it as json into internal buffer
+		   _local str << internal_text_output_stream.new()
+		   selection.as_geojson(str)
+		   str << str.string
+		   out.put_unsigned_int( str.size * 2 )
+		   # send json as bytes back to caller
+		   daemon_io.put_str( out , str )
+
+		   out.flush()
+	   _endproc
+
+	daemon.services[:search_roads] << p	
+
+_endblock
+$

@@ -3,6 +3,7 @@
 _package sw
 $
 
+## class comments are a waste. not visible in cb.
 def_slotted_exemplar(
 	:daemon ,
 	{{:sconn,_unset},
@@ -56,8 +57,7 @@ _method daemon.do_work(socket)
 	## of the service to invoke - which is nothing more than a key
 	## in the "services" slot. the service is called upon by
 	## calling :invoke() on it.  thus a service may be an
-	## exemplar, an object or perhaps nothing more than an
-	## anonymous proc.
+	## exemplar, an object or e.g. an anonymous proc.
 	##
 	## if things do not go precisely as laid out in our cunning
 	## plan, the network connection is closed and the thread
@@ -66,14 +66,12 @@ _method daemon.do_work(socket)
 	_if socket _is _unset _then _return _endif
 
 	_local handler_proc<<
-		_proc(socket)
+		_proc@daemon_socket_handler(socket)
 			_local in<<socket.input
 			_local out<<socket.output
 			_protect
 				_loop
-					_local ex_len << in.get_unsigned_int()
-					_if ex_len _is _unset _then _leave _endif
-					_local service_name << in.get_ascii_chars(ex_len)
+					_local service_name << daemon_io.get_str(in)
 					_if service_name _is _unset _then _leave _endif
 					_local service << daemon.services[ service_name.as_symbol() ]
 					_if service _is _unset _then _leave _endif

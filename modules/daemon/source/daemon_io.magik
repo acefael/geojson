@@ -1,0 +1,51 @@
+#% text_encoding=utf8
+
+_package sw
+$
+
+## class comments are a waste. not visible in cb.
+def_slotted_exemplar(
+	:daemon_io ,
+	{},
+	{} )
+$
+
+_method daemon_io.get_str(in)
+	## reads a string from in.
+	##
+	## first reads an uint telling the number of characters. then
+	## reads that many unsigned shorts, which are the characters.
+	_local num << in.get_unsigned_int()
+	_if num _is _unset _then _return _unset _endif
+
+	_local buf << internal_text_output_stream.new_for( num )
+	_local n << _unset
+	_local nread << 0
+	_for i _over range(1,num)
+	_loop
+		n << in.get_unsigned_short()
+		_if n _is _unset _then _leave _endif
+		buf.write(character.from_value(n))
+		nread +<< 1
+	_endloop
+
+	>> buf.string, nread
+
+_endmethod
+$
+
+_method daemon_io.put_str( out , str , _optional put_length? )
+	## writes the characters of the string as unsigned shorts unto
+	## the stream out. if put_length? is true, a 4 byte uint,
+	## telling the length of the string, is prepended.
+	_if put_length? _is _true
+	_then
+		out.put_unsigned_int( str.size )
+	_endif
+
+	_for c _over str.elements()
+	_loop
+		out.put_unsigned_short(c.value)
+	_endloop
+_endmethod
+$
