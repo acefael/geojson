@@ -10,9 +10,8 @@ The protocol is of course very simple.  The client invokes a service
 and receives the response.  Invoking a service means sending the name
 that the service is registered under in the daemon, followed by the
 service parameters.  In the MSF, the daemon reads the service name and
-then directly goes to invoke the service procedure.  The service
-procedure is responsible for reading the method parameters and for
-sending the response.
+invokes the service procedure.  The service procedure is responsible
+for reading any method parameters and for sending the response.
 
 In bits and bytes:
 
