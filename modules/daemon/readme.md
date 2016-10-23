@@ -1,8 +1,9 @@
 # The Daemon Module
 
-This Smallworld&copy; Magik Module implements a Network Service Shell.
-It can be told to listen on a TCP Port to serve clients.  There are no
-default services. The `daemon_image` module has some sample services.
+This Smallworld&trade; Magik Module implements a Network Service
+Shell.  It can be told to listen on a TCP Port to serve clients.
+There are no default services. The `daemon_image` module has some
+sample services.
 
 ## Network Protocol
 
