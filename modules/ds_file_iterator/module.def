@@ -1,0 +1,5 @@
+ds_file_iterator 1
+
+description
+	code to iterate ds files and their superfiles
+end

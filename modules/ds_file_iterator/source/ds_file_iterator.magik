@@ -1,0 +1,199 @@
+#
+# use as you please but keep the copyright notice with the source.
+#
+# use at your own risk. no liability implied.
+#
+# copyright (c) acefael.es
+#
+
+_package sw
+$
+
+_pragma(classify_level=advanced,topic={ds,acefael})
+def_slotted_exemplar( :ds_file_iterator , {} , {} )
+$
+
+_pragma(classify_level=advanced,topic={ds,acefael})
+_method ds_file_iterator.each( callback )
+	##
+	##
+	##
+	## iterates over all soms in gis_program_manager, calling callback
+	## for each file.
+	##
+	## callback is a proc taking two arguments:
+	##
+	## - file : ds_file
+	## - components : vector
+	##
+	## where vector holds a vector for each component, but only if
+	## file is a superfile.  each component contains:
+	##
+	## - component path name : char16_vector
+	## - max size : number
+	## - used size : number
+	##
+	## where these values are simply those returned by
+	## superfile_query_component.
+	##
+	##
+	##
+
+	_for ds _over gis_program_manager.cached_datasets()
+	_loop
+		# ds is a sw:dataset_manager , optionally implementing
+		# sw:ds_version_view
+		_if ds.responds_to?( :files )
+		_then
+			_for f _over ds.files.elements()
+			_loop
+				# f is a sw:ds_file
+
+				_local (path_name,regular?,convertable?,readonly?,temporary?) <<
+					f.superfile_query_file()
+
+				_if path_name _is _unset
+				_then
+
+					!error!.write( "**** Error: unable to get file info for " , f.name , %newline )
+
+				_else
+
+					_local component_info << _unset
+
+					_if regular? _isnt _true
+					_then
+						_local ( file_id, block_id, comp_total, comp_max ) <<
+							f.superfile_query_index()
+						#
+						#
+						#
+						# vector of simple vectors, each containing some
+						# superfile info:
+						#
+						# - component path name (full)
+						# - component max size
+						# - component used size
+						#
+						#
+						#
+						component_info << sw:vector.new( comp_total )
+
+						_for i _over range(1, comp_total)
+						_loop
+							_local ( pname , max_size , used_size ) <<
+								f.superfile_query_component( i-1 )
+							component_info[ i ] << { pname , max_size , used_size }
+						_endloop
+					_endif
+
+					# call the callback
+					callback.invoke( f , component_info )
+
+				_endif
+			_endloop
+		_endif
+	_endloop
+_endmethod
+$
+
+_pragma(classify_level=advanced,topic={ds,acefael})
+_method ds_file_iterator.backup_file( file , components )
+	##
+	##
+	## sample backup procedure that recreates file structure from
+	## $DATABASE_ROOT into $BACKUP_ROOT
+	##
+	## there are *many* assumptions here, e.g. environment variables
+	## defined, same host os (unix/windows) and of course many of the
+	## parameters are hardwired in the calls to ds_transfer
+	##
+	## for this reason this _method is an example only.  it was never
+	## meant to be anything else
+	##
+	##
+	##
+
+	_local backupdir << system.getenv( :BACKUP_ROOT )
+	_local dbdir << system.getenv( :DATABASE_ROOT )
+
+	_if backupdir _is _unset
+	_then
+		!error_output!.write( "backup dir undefined" , %newline )
+	_endif
+
+	backupdir << system.canonicalise( backupdir )
+	dbdir << system.canonicalise( dbdir )
+
+	_local replace << _proc( str , text , replacement )
+						  >> replacement + str.slice( 1+text.size , str.size )
+					  _endproc
+
+	_local ensuredir << _proc( dirname )
+							_if _false = system.file_exists?( dirname )
+							_then
+								_self( system.pathname_up( dirname ) )
+								system.mkdir( dirname )
+							_endif
+						_endproc
+
+	_if components _is _unset
+	_then
+		#
+		# normal file
+		#
+
+		_local sfile << file.superfile_query_file()
+		_local sdir << system.pathname_up( sfile )
+
+		_local tfile << replace( sfile , dbdir , backupdir )
+		_local tdir << system.pathname_up( tfile )
+
+		ensuredir( tdir )
+
+ 		ds_transfer.new( :searchpath , { sdir } ,
+ 						 :from_ds_file , file.name ,
+ 						 :to_ds_file , file.name ,
+ 						 :alternatives , {:only,"***top***"} ,
+ 						 :to_params , { :directory , tdir } ,
+ 						 :info_level , 1 ).do()
+	_else
+		#
+		# superfile
+		#
+
+		# components is vector of vectors each containing fullname ,
+		# max size and used size.
+
+		_local sfile << components[1][1]
+		_local sdir << system.pathname_up( sfile )
+		_local sname << system.relativise( sfile , sdir )
+
+		_local tfile << replace( sfile , dbdir , backupdir )
+		_local tdir << system.pathname_up( tfile )
+
+		_local sfiles << { tdir , sname , components[1][2] , simple_vector.new(components.size-1) }
+
+		_for i _over range(2,components.size)
+		_loop
+			sfiles[4][ i-1 ] << { replace( components[i][1] , dbdir , backupdir ) , components[i][2] }
+		_endloop
+
+		ds_transfer.new( :searchpath , { sdir } ,
+ 						 :from_ds_file , sname ,
+ 						 :to_ds_file , sname ,
+ 						 :alternatives , {:only,"***top***"} ,
+ 						 :to_params , { :directory , tdir } ,
+ 						 :info_level , 1 ,
+						 :superfiles , { sfiles } ).do()
+
+	_endif
+
+_endmethod
+$
+
+#
+# now run
+#
+#   ds_file_iterator.each( _proc(a,b) ds_file_iterator.backup_file(a,b) _endproc )
+#
